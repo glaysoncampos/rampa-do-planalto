@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lula Runner | 40 segundos</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#101010;color:#fff;font-family:system-ui,Arial,sans-serif}body{display:grid;place-items:center;padding:10px}.wrap{width:min(1100px,100%);position:relative;overflow:hidden;border:2px solid #555;border-radius:16px;background:#ddd}canvas{display:block;width:100%;aspect-ratio:1000/560;touch-action:manipulation}.veil{position:absolute;inset:0;display:grid;place-items:center;background:#000b;padding:20px;text-align:center}.panel{max-width:610px;padding:24px;border:2px solid #777;border-radius:18px;background:#191919ee;box-shadow:0 15px 40px #0008}.panel h1{margin:0 0 12px;font-size:clamp(25px,4vw,42px)}.panel p{line-height:1.5}.panel button{border:0;border-radius:11px;padding:13px 27px;background:#d8272d;color:white;font-weight:800;font-size:17px;cursor:pointer}.hint{font-size:13px;color:#ccc}.hidden{display:none}@media(max-width:650px){body{padding:0;background:#222;min-height:100dvh}.wrap{border:0;border-radius:0}.panel{padding:14px}.panel p{font-size:14px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<canvas id="game" width="1000" height="560" aria-label="Jogo Lula Runner"></canvas>
+<div class="veil" id="start"><div class="panel"><h1>🏃 Lula Runner</h1><p>40 segundos de corrida. Pule os obstáculos, evite perder pontos e acompanhe a subida da rampa do Palácio do Planalto.</p><p><b>Toque na tela</b> ou pressione <b>Espaço</b> para pular. Colisões tiram 50 pontos, sem encerrar a partida.</p><button id="play">JOGAR</button><p class="hint">Caricatura colorida, cenário preto e branco e obstáculos com detalhes de cor.</p></div></div>
+<div class="veil hidden" id="finish"><div class="panel"><h1>🏛️ Chegada ao Planalto!</h1><p id="results"></p><button id="again">JOGAR NOVAMENTE</button></div></div>
+</div>
+<script>
+(()=>{
+'use strict';
+const c=document.getElementById('game'),g=c.getContext('2d');
+const show=id=>document.getElementById(id).classList.remove('hidden');
+const hide=id=>document.getElementById(id).classList.add('hidden');
+const RUN=34,CLIMB=4,END=2,TOTAL=RUN+CLIMB+END,FLOOR=435;
+const topics=[
+ [{emoji:'🦠',label:'Pandemia',c:'#43bce7'},{emoji:'💉',label:'Vacinas',c:'#1686d4'},{emoji:'😷',label:'Saúde',c:'#50bdd0'}],
+ [{emoji:'🔥',label:'Queimadas',c:'#ff8b25'},{emoji:'🪵',label:'Florestas',c:'#ce853d'},{emoji:'⛏️',label:'Garimpo',c:'#e6bf36'}],
+ [{emoji:'💰',label:'Orçamento',c:'#4cbe76'},{emoji:'🚌',label:'Ônibus',c:'#f3bf28'},{emoji:'💼',label:'MEC',c:'#319fdd'}],
+ [{emoji:'🗳️',label:'Urnas',c:'#3b8de4'},{emoji:'⚖️',label:'Justiça',c:'#ac8ce1'},{emoji:'📢',label:'Discursos',c:'#e56c68'}],
+ [{emoji:'💎',label:'Joias',c:'#53bbd7'},{emoji:'📄',label:'Inquéritos',c:'#b1b1b1'},{emoji:'🚫',label:'TSE',c:'#db5555'}]
+];
+const themes=['Pandemia','Meio ambiente','Orçamento','Instituições','Investigações'];
+let s,actor,last=0,raf=0;
+function reset(){s={mode:'ready',t:0,score:1000,hits:0,avoided:0,obstacles:[],spawn:0,offset:0,clouds:[{x:90,y:115},{x:350,y:90},{x:710,y:138},{x:920,y:82}],invuln:0};actor={x:150,y:FLOOR-110,w:65,h:110,vy:0};last=0;draw()}
+function begin(){cancelAnimationFrame(raf);reset();hide('start');hide('finish');s.mode='playing';raf=requestAnimationFrame(frame)}
+function jump(){if(s.mode!=='playing'||s.t>=RUN)return;if(actor.y>=FLOOR-actor.h-1){actor.vy=-790;}}
+function frame(tm){if(s.mode!=='playing')return;if(!last)last=tm;let dt=Math.min((tm-last)/1000,.04);last=tm;update(dt);draw();if(s.mode==='playing')raf=requestAnimationFrame(frame)}
+function update(dt){s.t=Math.min(TOTAL,s.t+dt);s.invuln=Math.max(0,s.invuln-dt);s.offset+=dt*(240+s.t*4);
+ if(s.t<RUN){actor.vy+=1850*dt;actor.y+=actor.vy*dt;if(actor.y>=FLOOR-actor.h){actor.y=FLOOR-actor.h;actor.vy=0}
+ s.spawn+=dt;const interval=Math.max(.75,1.18-s.t*.009);if(s.spawn>=interval){s.spawn=0;const phase=Math.min(4,Math.floor(s.t/(RUN/5)));const set=topics[phase],o=set[Math.floor(Math.random()*set.length)];s.obstacles.push({...o,x:1030,y:FLOOR-75,w:75,h:75,hit:false,passed:false})}
+ for(const o of s.obstacles){o.x-=(305+s.t*3)*dt;if(!o.hit&&s.invuln===0&&actor.x+actor.w-11>o.x+10&&actor.x+11<o.x+o.w-10&&actor.y+actor.h-8>o.y+8&&actor.y+10<o.y+o.h-8){o.hit=true;s.score=Math.max(0,s.score-50);s.hits++;s.invuln=1.4}if(!o.passed&&o.x+o.w<actor.x){o.passed=true;if(!o.hit){s.avoided++;s.score+=10}}}
+ s.obstacles=s.obstacles.filter(o=>o.x>-100);
+ }else{s.obstacles=[];const p=Math.min(1,(s.t-RUN)/CLIMB); // ascent follows the drawn ramp
+ actor.x=330+390*p;
+ const bottom=FLOOR-110;
+ actor.y=bottom-141*Math.max(0,Math.min(1,(p-.15)/.72));
+ if(s.t>=TOTAL){s.mode='finished';document.getElementById('results').textContent=`Pontuação: ${s.score} pontos | Obstáculos evitados: ${s.avoided} | Colisões: ${s.hits}.`;show('finish')}
+ }}
+function rr(x,y,w,h,r,fill,stroke){g.beginPath();g.roundRect(x,y,w,h,r);if(fill){g.fillStyle=fill;g.fill()}if(stroke){g.strokeStyle=stroke;g.lineWidth=2;g.stroke()}}
+function line(x1,y1,x2,y2,color='#555',width=2){g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.strokeStyle=color;g.lineWidth=width;g.stroke()}
+function label(t,x,y,size=17,color='#111',align='left'){g.fillStyle=color;g.font=`700 ${size}px system-ui,Arial`;g.textAlign=align;g.fillText(t,x,y)}
+function backdrop(){g.fillStyle='#ededed';g.fillRect(0,0,1000,560);g.fillStyle='#d1d1d1';g.fillRect(0,265,1000,170);for(let i=0;i<10;i++){const x=((i*165-s.offset*.13)%1160+1160)%1160-80,ht=55+(i%3)*24;g.fillStyle=i%2?'#9b9b9b':'#b1b1b1';g.fillRect(x,FLOOR-ht,94,ht);g.fillStyle='#dedede';for(let yy=FLOOR-ht+14;yy<FLOOR-10;yy+=22)for(let xx=x+12;xx<x+78;xx+=24)g.fillRect(xx,yy,10,11)}
+ for(const [i,cl] of s.clouds.entries()){const x=((cl.x-s.offset*.045*(1+i*.13))%1170+1170)%1170-80;rr(x,cl.y,105,21,12,'#fff');rr(x+19,cl.y-16,55,31,18,'#fafafa')}
+ g.fillStyle='#f7f7f7';g.fillRect(0,FLOOR,1000,125);line(0,FLOOR,1000,FLOOR,'#353535',5);for(let x=0;x<1050;x+=50){const xx=(x-s.offset*.4%50+50)%1050;line(xx,477,xx+27,477,'#adadad',3)}}
+function palace(){g.fillStyle='#eeeeee';g.fillRect(0,0,1000,560);g.fillStyle='#dadada';g.fillRect(0,390,1000,170); // modernist facade, architectural interpretation
+ // reflection pool and ground
+ g.fillStyle='#999';g.fillRect(24,438,225,21);g.fillStyle='#c7c7c7';g.fillRect(24,443,225,9);
+ // roof canopy
+ rr(185,134,690,23,2,'#fafafa','#909090');
+ // glass facade
+ g.fillStyle='#777';g.fillRect(210,174,640,168);g.fillStyle='#a9a9a9';for(let j=0;j<17;j++){g.fillRect(214+j*38,180,30,157)}
+ for(let j=0;j<18;j++)line(210+j*38,175,210+j*38,342,'#585858',2);
+ for(let j=0;j<4;j++)line(210,178+j*52,850,178+j*52,'#555',2);
+ // characteristic sculptural white columns with swooping narrow feet, in front of glass
+ for(let j=0;j<7;j++){const x=188+j*102;g.fillStyle='#f6f6f6';g.beginPath();g.moveTo(x,157);g.lineTo(x+27,157);g.bezierCurveTo(x+26,207,x+25,285,x+4,355);g.bezierCurveTo(x-4,383,x-19,408,x-20,418);g.lineTo(x-35,418);g.bezierCurveTo(x+10,338,x+5,238,x,157);g.fill();line(x+22,160,x+3,351,'#cdcdcd',2)}
+ // entrance landing and strong sloping access ramp. Character follows upper edge.
+ g.fillStyle='#e3e3e3';g.beginPath();g.moveTo(275,435);g.lineTo(345,435);g.lineTo(745,285);g.lineTo(815,285);g.lineTo(815,308);g.lineTo(746,308);g.lineTo(353,456);g.lineTo(275,456);g.closePath();g.fill();line(345,435,745,285,'#fff',6);line(345,455,748,307,'#ababab',3);
+ // central upper landing
+ rr(745,280,110,11,0,'#fafafa');
+ // banner and small flags (color only at end, when character arrives)
+ if(s.t>=RUN+CLIMB){g.fillStyle='#168a48';g.fillRect(788,109,44,7);g.fillStyle='#f9d52e';g.fillRect(805,110,12,6)}
+ label('PALÁCIO DO PLANALTO',530,110,23,'#3f3f3f','center')
+}
+function obstacles(){for(const o of s.obstacles){rr(o.x,o.y,o.w,o.h,10,o.hit?'#777':'#303030','#bbb');g.fillStyle=o.c;g.fillRect(o.x+8,o.y+7,o.w-16,7);g.font='31px "Apple Color Emoji","Segoe UI Emoji",sans-serif';g.textAlign='center';g.fillText(o.emoji,o.x+o.w/2,o.y+45);label(o.label,o.x+o.w/2,o.y+65,11,'white','center')}}
+function character(){const x=actor.x,y=actor.y,bounce=s.t<RUN&&actor.vy===0?Math.sin(s.t*21)*3:0;if(s.invuln>0&&Math.floor(s.invuln*12)%2===0)g.globalAlpha=.45;
+ g.fillStyle='#333';g.beginPath();g.ellipse(x+32,FLOOR+5,31,7,0,0,Math.PI*2);g.fill();
+ g.strokeStyle='#343434';g.lineWidth=9;g.lineCap='round';const step=s.t<RUN&&actor.vy===0?Math.sin(s.t*19)*9:0;line(x+27,y+86,x+22+step,y+105,'#333',9);line(x+46,y+86,x+52-step,y+105,'#333',9);
+ rr(x+16,y+44+bounce,49,47,12,'#ce2029');g.strokeStyle='#e9b68c';line(x+17,y+54,x+5,y+72-step/3,'#e6b28f',9);line(x+62,y+54,x+75,y+73+step/3,'#e6b28f',9);
+ g.fillStyle='#edbc99';g.beginPath();g.ellipse(x+40,y+30,31,29,0,0,Math.PI*2);g.fill();
+ g.fillStyle='#f6f6f6';g.beginPath();g.arc(x+39,y+21,29,Math.PI,Math.PI*2);g.fill();g.beginPath();g.ellipse(x+40,y+46,23,12,0,0,Math.PI);g.fill();
+ g.fillStyle='#292929';g.beginPath();g.arc(x+30,y+29,2.3,0,7);g.arc(x+49,y+29,2.3,0,7);g.fill();line(x+34,y+38,x+45,y+39,'#7c4840',2);g.globalAlpha=1}
+function hud(){rr(13,12,345,76,12,'#222e');label('LULA RUNNER',29,38,23,'#fff');const phase=s.t<RUN?Math.min(4,Math.floor(s.t/(RUN/5))):5;label(phase<5?themes[phase]:'Rampa do Planalto',29,66,16,'#eee');rr(735,12,250,76,12,'#222e');label(`PONTOS ${s.score}`,750,39,20,'#fff');label(`TEMPO ${Math.max(0,Math.ceil(TOTAL-s.t))} s`,750,66,17,'#fff');rr(370,25,350,20,9,'#888');rr(373,28,Math.max(0,344*s.t/TOTAL),14,7,'#d72d30');if(s.t>=RUN){label(s.t<RUN+CLIMB?'SUBINDO A RAMPA':'CHEGADA!',500,82,18,'#343434','center')}else label('TOQUE OU ESPAÇO PARA PULAR',500,530,14,'#454545','center')}
+function draw(){if(!s)return;g.clearRect(0,0,1000,560);if(s.t<RUN)backdrop();else palace();if(s.t<RUN)obstacles();character();hud()}
+const canvasTap=e=>{e.preventDefault();jump()};c.addEventListener('pointerdown',canvasTap,{passive:false});window.addEventListener('keydown',e=>{if(['Space','ArrowUp'].includes(e.code)){e.preventDefault();jump()}},{passive:false});document.getElementById('play').addEventListener('click',begin);document.getElementById('again').addEventListener('click',begin);reset();
+})();
+</script>
+</body>
+</html>
